@@ -1,0 +1,12 @@
+{
+  "domain": "snoo_premium",
+  "name": "Snoo Premium",
+  "codeowners": ["@acandido"],
+  "config_flow": true,
+  "documentation": "https://github.com/acandido/snoo-ha",
+  "integration_type": "hub",
+  "iot_class": "cloud_push",
+  "issue_tracker": "https://github.com/acandido/snoo-ha/issues",
+  "requirements": ["python-snoo==0.11.0"],
+  "version": "1.0.0"
+}

@@ -1,0 +1,52 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to Happiest Baby",
+        "description": "Enter your Happiest Baby account credentials.",
+        "data": {
+          "username": "Email",
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Unable to connect to Happiest Baby servers.",
+      "invalid_auth": "Invalid email or password.",
+      "unknown": "An unexpected error occurred."
+    },
+    "abort": {
+      "already_configured": "This account is already configured."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "state": { "name": "State" },
+      "time_left": { "name": "Time left" },
+      "session_duration": { "name": "Session duration" },
+      "last_session_duration": { "name": "Last session duration" }
+    },
+    "binary_sensor": {
+      "left_clip": { "name": "Left safety clip" },
+      "right_clip": { "name": "Right safety clip" }
+    },
+    "select": {
+      "intensity": { "name": "Intensity" },
+      "responsiveness": { "name": "Responsiveness" },
+      "motion_start_level": { "name": "Motion start level" }
+    },
+    "switch": {
+      "hold": { "name": "Level lock" },
+      "sticky_white_noise": { "name": "Sleepytime sounds" },
+      "motion_limiter": { "name": "Motion limiter" },
+      "car_ride_mode": { "name": "Car ride mode" },
+      "weaning": { "name": "Weaning mode" }
+    },
+    "button": {
+      "start_snoo": { "name": "Start" }
+    },
+    "event": {
+      "event": { "name": "Event" }
+    }
+  }
+}

@@ -1,0 +1,46 @@
+title: Snoo
+views:
+  - title: Snoo
+    path: snoo
+    type: panel
+    cards:
+      - type: vertical-stack
+        cards:
+          # Main Snoo control card (custom JS card)
+          - type: custom:snoo-card
+
+          # Fallback: if custom card doesn't load, these native cards provide full control
+          # Uncomment the section below and comment out the custom:snoo-card above if needed
+
+          # - type: entities
+          #   title: Snoo Controls
+          #   entities:
+          #     - entity: sensor.snoo_premium_state
+          #       name: State
+          #     - entity: sensor.snoo_premium_session_duration
+          #       name: Session Duration
+          #     - entity: select.snoo_premium_intensity
+          #       name: Intensity
+          #     - entity: switch.snoo_premium_hold
+          #       name: Level Lock
+          #     - entity: button.snoo_premium_start
+          #       name: Start
+          #     - type: divider
+          #     - entity: switch.snoo_premium_motion_limiter
+          #       name: Motion Limiter
+          #     - entity: switch.snoo_premium_weaning
+          #       name: Weaning Mode
+          #     - entity: switch.snoo_premium_car_ride_mode
+          #       name: Car Ride Mode
+          #     - entity: switch.snoo_premium_sticky_white_noise
+          #       name: Sleepytime Sounds
+          #     - type: divider
+          #     - entity: select.snoo_premium_responsiveness
+          #       name: Responsiveness
+          #     - entity: select.snoo_premium_motion_start_level
+          #       name: Motion Start Level
+          #     - type: divider
+          #     - entity: binary_sensor.snoo_premium_left_clip
+          #       name: Left Safety Clip
+          #     - entity: binary_sensor.snoo_premium_right_clip
+          #       name: Right Safety Clip

@@ -1,0 +1,7 @@
+{
+  "name": "Snoo Premium",
+  "render_readme": true,
+  "domains": ["binary_sensor", "button", "event", "select", "sensor", "switch"],
+  "iot_class": "cloud_push",
+  "homeassistant": "2025.3.0"
+}
