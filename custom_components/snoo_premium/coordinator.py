@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from python_snoo.containers import BabyData, SnooData, SnooDevice
 from python_snoo.snoo import Snoo
@@ -44,7 +44,15 @@ class SnooCoordinator(DataUpdateCoordinator[SnooData]):
         self.settings_api = settings_api
         self.baby_id = baby_id
         self.baby_settings: dict = {}
+
+        # Live session tracking
         self.session_duration_seconds: int = 0
+        self._was_active: bool = False
+
+        # Persistent session tracking (survives session end)
+        self.session_start_time: datetime | None = None
+        self.session_end_time: datetime | None = None
+        self.last_session_duration_seconds: int = 0
 
     @property
     def token(self) -> str:
@@ -59,12 +67,31 @@ class SnooCoordinator(DataUpdateCoordinator[SnooData]):
 
     def _handle_update(self, data: SnooData) -> None:
         """Handle real-time MQTT state updates and track session duration."""
-        if data.state_machine.is_active_session:
+        is_active = data.state_machine.is_active_session
+        now = datetime.now(timezone.utc)
+
+        if is_active:
             self.session_duration_seconds = (
                 data.state_machine.since_session_start_ms // 1000
             )
+            # Session just started
+            if not self._was_active:
+                self.session_start_time = now
+                self.session_end_time = None
+                _LOGGER.debug("Snoo session started at %s", now.isoformat())
         else:
+            # Session just ended
+            if self._was_active and self.session_duration_seconds > 0:
+                self.last_session_duration_seconds = self.session_duration_seconds
+                self.session_end_time = now
+                _LOGGER.debug(
+                    "Snoo session ended at %s (duration: %ds)",
+                    now.isoformat(),
+                    self.last_session_duration_seconds,
+                )
             self.session_duration_seconds = 0
+
+        self._was_active = is_active
         self.async_set_updated_data(data)
 
     async def refresh_settings(self) -> None:
