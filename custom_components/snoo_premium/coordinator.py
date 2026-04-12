@@ -114,17 +114,24 @@ class SnooCoordinator(DataUpdateCoordinator[SnooData]):
     def _handle_update(self, data: SnooData) -> None:
         """Handle real-time MQTT state updates and track session duration."""
         is_active = data.state_machine.is_active_session
+        since_ms = data.state_machine.since_session_start_ms
         now = datetime.now(timezone.utc)
 
-        if is_active:
-            self.session_duration_seconds = (
-                data.state_machine.since_session_start_ms // 1000
-            )
+        # Treat as active only when the device reports meaningful elapsed time.
+        # A since_session_start_ms of 0 is a status-ping artifact, not a live session.
+        real_active = is_active and since_ms > 0
+
+        if real_active:
+            self.session_duration_seconds = since_ms // 1000
             if not self._was_active:
-                # New session started
-                self.session_start_time = now
+                # New session — compute accurate start time from elapsed ms
+                from datetime import timedelta
+                self.session_start_time = now - timedelta(milliseconds=since_ms)
                 self.session_end_time = None
-                _LOGGER.debug("Snoo session started at %s", now.isoformat())
+                _LOGGER.debug(
+                    "Snoo session started (computed start: %s)",
+                    self.session_start_time.isoformat(),
+                )
                 self.hass.async_create_task(self._save_session_data())
         else:
             if self._was_active and self.session_duration_seconds > 0:
@@ -139,7 +146,7 @@ class SnooCoordinator(DataUpdateCoordinator[SnooData]):
                 self.hass.async_create_task(self._save_session_data())
             self.session_duration_seconds = 0
 
-        self._was_active = is_active
+        self._was_active = real_active
         self.async_set_updated_data(data)
 
     async def refresh_settings(self) -> None:
