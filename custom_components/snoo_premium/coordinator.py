@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
-from python_snoo.containers import SnooData, SnooDevice
+from python_snoo.containers import SnooData, SnooDevice, SnooStates
 from python_snoo.snoo import Snoo
 
 from homeassistant.config_entries import ConfigEntry
@@ -20,6 +20,16 @@ _LOGGER = logging.getLogger(__name__)
 
 STORAGE_VERSION = 1
 STORAGE_KEY_PREFIX = "snoo_premium_session"
+
+# States where the Snoo is actively soothing the baby
+_ACTIVE_STATES = {
+    SnooStates.baseline,
+    SnooStates.weaning_baseline,
+    SnooStates.level1,
+    SnooStates.level2,
+    SnooStates.level3,
+    SnooStates.level4,
+}
 
 
 class SnooCoordinator(DataUpdateCoordinator[SnooData]):
@@ -113,24 +123,28 @@ class SnooCoordinator(DataUpdateCoordinator[SnooData]):
 
     def _handle_update(self, data: SnooData) -> None:
         """Handle real-time MQTT state updates and track session duration."""
-        is_active = data.state_machine.is_active_session
+        from datetime import timedelta
+
+        state = data.state_machine.state
         since_ms = data.state_machine.since_session_start_ms
         now = datetime.now(timezone.utc)
 
-        # Treat as active only when the device reports meaningful elapsed time.
-        # A since_session_start_ms of 0 is a status-ping artifact, not a live session.
-        real_active = is_active and since_ms > 0
+        # Use the state field as the reliable active indicator — is_active_session
+        # is not consistently populated across all Snoo firmware versions.
+        is_active = state in _ACTIVE_STATES
 
-        if real_active:
-            self.session_duration_seconds = since_ms // 1000
+        if is_active:
+            if since_ms > 0:
+                self.session_duration_seconds = since_ms // 1000
             if not self._was_active:
-                # New session — compute accurate start time from elapsed ms
-                from datetime import timedelta
-                self.session_start_time = now - timedelta(milliseconds=since_ms)
+                # Session just started — compute accurate start time from elapsed ms
+                offset = timedelta(milliseconds=since_ms) if since_ms > 0 else timedelta()
+                self.session_start_time = now - offset
                 self.session_end_time = None
                 _LOGGER.debug(
-                    "Snoo session started (computed start: %s)",
+                    "Snoo session started (computed start: %s, state: %s)",
                     self.session_start_time.isoformat(),
+                    state,
                 )
                 self.hass.async_create_task(self._save_session_data())
         else:
@@ -139,14 +153,15 @@ class SnooCoordinator(DataUpdateCoordinator[SnooData]):
                 self.last_session_duration_seconds = self.session_duration_seconds
                 self.session_end_time = now
                 _LOGGER.debug(
-                    "Snoo session ended at %s (duration: %ds)",
+                    "Snoo session ended at %s (duration: %ds, state: %s)",
                     now.isoformat(),
                     self.last_session_duration_seconds,
+                    state,
                 )
                 self.hass.async_create_task(self._save_session_data())
             self.session_duration_seconds = 0
 
-        self._was_active = real_active
+        self._was_active = is_active
         self.async_set_updated_data(data)
 
     async def refresh_settings(self) -> None:
