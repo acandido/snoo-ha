@@ -18,7 +18,7 @@ type SnooConfigEntry = ConfigEntry[dict[str, "SnooCoordinator"]]
 
 _LOGGER = logging.getLogger(__name__)
 
-STORAGE_VERSION = 2
+STORAGE_VERSION = 1
 STORAGE_KEY_PREFIX = "snoo_premium_session"
 
 # How many days of session history to keep in the JSON log
