@@ -140,13 +140,14 @@ class SnooCoordinator(DataUpdateCoordinator[SnooData]):
                 # Session just started — compute accurate start time from elapsed ms
                 offset = timedelta(milliseconds=since_ms) if since_ms > 0 else timedelta()
                 self.session_start_time = now - offset
-                self.session_end_time = None
+                # NOTE: do NOT clear session_end_time here — it should always
+                # reflect the end of the last completed session so it survives
+                # restarts and remains visible between sessions.
                 _LOGGER.debug(
                     "Snoo session started (computed start: %s, state: %s)",
                     self.session_start_time.isoformat(),
                     state,
                 )
-                self.hass.async_create_task(self._save_session_data())
         else:
             if self._was_active and self.session_duration_seconds > 0:
                 # Session just ended — capture and persist
