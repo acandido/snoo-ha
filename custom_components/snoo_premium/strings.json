@@ -26,7 +26,8 @@
       "session_duration": { "name": "Session duration" },
       "last_session_duration": { "name": "Last session duration" },
       "session_start": { "name": "Session start" },
-      "session_end": { "name": "Session end" }
+      "session_end": { "name": "Session end" },
+      "session_log": { "name": "Session log" }
     },
     "binary_sensor": {
       "left_clip": { "name": "Left safety clip" },

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any
 
 from python_snoo.containers import SnooData, SnooStates
 
@@ -11,6 +12,7 @@ from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
     SensorEntityDescription,
+    SensorStateClass,
     StateType,
 )
 from homeassistant.core import HomeAssistant
@@ -23,6 +25,7 @@ from .entity import SnooDescriptionEntity
 @dataclass(frozen=True, kw_only=True)
 class SnooSensorEntityDescription(SensorEntityDescription):
     value_fn: Callable[[SnooData, SnooCoordinator], StateType]
+    extra_attrs_fn: Callable[[SnooCoordinator], dict[str, Any]] | None = None
 
 
 def _format_duration(seconds: int) -> str | None:
@@ -32,6 +35,30 @@ def _format_duration(seconds: int) -> str | None:
     h, remainder = divmod(seconds, 3600)
     m, s = divmod(remainder, 60)
     return f"{h}:{m:02d}:{s:02d}"
+
+
+def _history_attrs(coord: SnooCoordinator) -> dict[str, Any]:
+    """Build extra attributes for the session log sensor."""
+    history = coord.session_history
+    if not history:
+        return {"sessions": [], "total_sessions": 0}
+
+    # Summary stats
+    durations = [s["duration_seconds"] for s in history]
+    total = sum(durations)
+    avg = total // len(durations) if durations else 0
+
+    # Last 10 sessions for the attribute (full log is in storage)
+    recent = history[-10:]
+
+    return {
+        "total_sessions": len(history),
+        "total_sleep_seconds": total,
+        "total_sleep": _format_duration(total) or "0:00:00",
+        "average_session_seconds": avg,
+        "average_session": _format_duration(avg) or "0:00:00",
+        "recent_sessions": recent,
+    }
 
 
 SENSOR_DESCRIPTIONS: list[SnooSensorEntityDescription] = [
@@ -81,6 +108,16 @@ SENSOR_DESCRIPTIONS: list[SnooSensorEntityDescription] = [
         device_class=SensorDeviceClass.TIMESTAMP,
         icon="mdi:sleep-off",
     ),
+    # Rolling session log — state is the total session count,
+    # attributes contain stats and the last 10 sessions
+    SnooSensorEntityDescription(
+        key="session_log",
+        translation_key="session_log",
+        value_fn=lambda _, coord: len(coord.session_history),
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        icon="mdi:chart-timeline-variant",
+        extra_attrs_fn=_history_attrs,
+    ),
 ]
 
 
@@ -104,3 +141,9 @@ class SnooSensor(SnooDescriptionEntity, SensorEntity):
         return self.entity_description.value_fn(
             self.coordinator.data, self.coordinator
         )
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        if self.entity_description.extra_attrs_fn is not None:
+            return self.entity_description.extra_attrs_fn(self.coordinator)
+        return None

@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from python_snoo.containers import SnooData, SnooDevice, SnooStates
 from python_snoo.snoo import Snoo
@@ -18,8 +18,11 @@ type SnooConfigEntry = ConfigEntry[dict[str, "SnooCoordinator"]]
 
 _LOGGER = logging.getLogger(__name__)
 
-STORAGE_VERSION = 1
+STORAGE_VERSION = 2
 STORAGE_KEY_PREFIX = "snoo_premium_session"
+
+# How many days of session history to keep in the JSON log
+SESSION_HISTORY_DAYS = 180
 
 # States where the Snoo is actively soothing the baby
 _ACTIVE_STATES = {
@@ -30,6 +33,13 @@ _ACTIVE_STATES = {
     SnooStates.level3,
     SnooStates.level4,
 }
+
+
+def _format_duration(seconds: int) -> str:
+    """Format seconds as H:MM:SS."""
+    h, remainder = divmod(seconds, 3600)
+    m, s = divmod(remainder, 60)
+    return f"{h}:{m:02d}:{s:02d}"
 
 
 class SnooCoordinator(DataUpdateCoordinator[SnooData]):
@@ -68,6 +78,9 @@ class SnooCoordinator(DataUpdateCoordinator[SnooData]):
         self.session_end_time: datetime | None = None
         self.last_session_duration_seconds: int = 0
 
+        # Rolling session history log (list of completed sessions)
+        self.session_history: list[dict] = []
+
         # HA file-based storage so values survive restarts
         self._store: Store = Store(
             hass,
@@ -88,10 +101,12 @@ class SnooCoordinator(DataUpdateCoordinator[SnooData]):
         await self.refresh_settings()
 
     async def _load_stored_session(self) -> None:
-        """Restore last session values from persistent storage."""
+        """Restore last session values and history from persistent storage."""
         stored = await self._store.async_load()
         if not stored:
             return
+
+        # Restore last-session summary
         self.last_session_duration_seconds = stored.get(
             "last_session_duration_seconds", 0
         )
@@ -105,10 +120,17 @@ class SnooCoordinator(DataUpdateCoordinator[SnooData]):
                 self.session_end_time = datetime.fromisoformat(ts)
             except ValueError:
                 pass
-        _LOGGER.debug("Restored session data from storage: %s", stored)
+
+        # Restore rolling session history
+        self.session_history = stored.get("session_history", [])
+        _LOGGER.debug(
+            "Restored session data: last_duration=%ds, history=%d sessions",
+            self.last_session_duration_seconds,
+            len(self.session_history),
+        )
 
     async def _save_session_data(self) -> None:
-        """Persist current session values to storage."""
+        """Persist current session values and history to storage."""
         await self._store.async_save(
             {
                 "last_session_duration_seconds": self.last_session_duration_seconds,
@@ -118,13 +140,23 @@ class SnooCoordinator(DataUpdateCoordinator[SnooData]):
                 "session_end_time": self.session_end_time.isoformat()
                 if self.session_end_time
                 else None,
+                "session_history": self.session_history,
             }
         )
 
+    def _purge_old_sessions(self) -> None:
+        """Remove session history entries older than SESSION_HISTORY_DAYS."""
+        if not self.session_history:
+            return
+        cutoff = (
+            datetime.now(timezone.utc) - timedelta(days=SESSION_HISTORY_DAYS)
+        ).isoformat()
+        self.session_history = [
+            s for s in self.session_history if s.get("end", "") >= cutoff
+        ]
+
     def _handle_update(self, data: SnooData) -> None:
         """Handle real-time MQTT state updates and track session duration."""
-        from datetime import timedelta
-
         state = data.state_machine.state
         since_ms = data.state_machine.since_session_start_ms
         now = datetime.now(timezone.utc)
@@ -137,12 +169,15 @@ class SnooCoordinator(DataUpdateCoordinator[SnooData]):
             if since_ms > 0:
                 self.session_duration_seconds = since_ms // 1000
             if not self._was_active:
-                # Session just started — compute accurate start time from elapsed ms
-                offset = timedelta(milliseconds=since_ms) if since_ms > 0 else timedelta()
+                # Session just started — compute accurate start from elapsed ms
+                offset = (
+                    timedelta(milliseconds=since_ms)
+                    if since_ms > 0
+                    else timedelta()
+                )
                 self.session_start_time = now - offset
                 # NOTE: do NOT clear session_end_time here — it should always
-                # reflect the end of the last completed session so it survives
-                # restarts and remains visible between sessions.
+                # reflect the end of the last completed session.
                 _LOGGER.debug(
                     "Snoo session started (computed start: %s, state: %s)",
                     self.session_start_time.isoformat(),
@@ -150,14 +185,32 @@ class SnooCoordinator(DataUpdateCoordinator[SnooData]):
                 )
         else:
             if self._was_active and self.session_duration_seconds > 0:
-                # Session just ended — capture and persist
+                # Session just ended — capture, log, and persist
                 self.last_session_duration_seconds = self.session_duration_seconds
                 self.session_end_time = now
+
+                # Append to rolling history
+                self.session_history.append(
+                    {
+                        "start": self.session_start_time.isoformat()
+                        if self.session_start_time
+                        else now.isoformat(),
+                        "end": now.isoformat(),
+                        "duration_seconds": self.last_session_duration_seconds,
+                        "duration": _format_duration(
+                            self.last_session_duration_seconds
+                        ),
+                    }
+                )
+                self._purge_old_sessions()
+
                 _LOGGER.debug(
-                    "Snoo session ended at %s (duration: %ds, state: %s)",
+                    "Snoo session ended at %s (duration: %ds, state: %s, "
+                    "total history: %d sessions)",
                     now.isoformat(),
                     self.last_session_duration_seconds,
                     state,
+                    len(self.session_history),
                 )
                 self.hass.async_create_task(self._save_session_data())
             self.session_duration_seconds = 0
