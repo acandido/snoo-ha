@@ -5,7 +5,7 @@ import logging
 
 import aiohttp
 
-from .const import BABY_API_BASE, SESSION_API_BASE
+from .const import BABY_API_BASE, BABY_API_SINGLE, SESSION_API_BASE
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -27,32 +27,22 @@ class SnooSettingsAPI:
 
     async def get_baby_settings(self, token: str, baby_id: str) -> dict:
         """Get full baby data including settings."""
-        url = f"{BABY_API_BASE}/{baby_id}"
-        async with self._session.get(url, headers=self._headers(token)) as resp:
+        async with self._session.get(
+            BABY_API_SINGLE, headers=self._headers(token)
+        ) as resp:
             resp.raise_for_status()
             data = await resp.json()
             return data.get("settings", {})
 
     async def update_baby_settings(self, token: str, baby_id: str, settings: dict) -> dict:
-        """Update baby settings via PUT to the baby endpoint.
+        """Update baby settings via PATCH to the baby endpoint.
 
-        The Happiest Baby app sends a PUT with the full baby object including
-        modified settings. We PATCH just the settings field.
+        The Happiest Baby API accepts PATCH /us/me/v10/baby with a partial
+        settings payload — no need to send the full baby object.
         """
-        url = f"{BABY_API_BASE}/{baby_id}"
-        # First get current baby data
-        async with self._session.get(url, headers=self._headers(token)) as resp:
-            resp.raise_for_status()
-            baby_data = await resp.json()
-
-        # Merge new settings into existing
-        current_settings = baby_data.get("settings", {})
-        current_settings.update(settings)
-        baby_data["settings"] = current_settings
-
-        # PUT the full baby object back
-        async with self._session.put(
-            url, headers=self._headers(token), json=baby_data
+        payload = {"settings": settings}
+        async with self._session.patch(
+            BABY_API_SINGLE, headers=self._headers(token), json=payload
         ) as resp:
             resp.raise_for_status()
             data = await resp.json()

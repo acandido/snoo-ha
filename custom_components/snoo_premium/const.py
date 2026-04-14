@@ -4,6 +4,7 @@ DOMAIN = "snoo_premium"
 
 # Happiest Baby API endpoints
 BABY_API_BASE = "https://api-us-east-1-prod.happiestbaby.com/us/me/v10/babies"
+BABY_API_SINGLE = "https://api-us-east-1-prod.happiestbaby.com/us/me/v10/baby"
 
 # Session history endpoint
 SESSION_API_BASE = "https://api-us-east-1-prod.happiestbaby.com/ss/v2/babies"

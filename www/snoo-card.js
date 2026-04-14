@@ -74,7 +74,7 @@ class SnooCard extends HTMLElement {
       if (
         entityId.startsWith(`${domain}.`) &&
         entityId.includes("snoo") &&
-        entityId.endsWith(key)
+        entityId.includes(key)
       ) {
         return { entityId, state };
       }
@@ -499,16 +499,16 @@ class SnooCard extends HTMLElement {
     if (!this._hass || !this.shadowRoot) return;
     const s = this.shadowRoot;
 
-    const stateEntity = this._findEntity("sensor", "state");
+    const stateEntity = this._findEntity("sensor", "state_premium");
     const intensityEntity = this._findEntity("select", "intensity");
-    const holdEntity = this._findEntity("switch", "hold");
-    const stickyEntity = this._findEntity("switch", "sticky_white_noise");
+    const holdEntity = this._findEntity("switch", "level_lock");
+    const stickyEntity = this._findEntity("switch", "sleepytime");
     const motionEntity = this._findEntity("switch", "motion_limiter");
     const weaningEntity = this._findEntity("switch", "weaning");
     const carRideEntity = this._findEntity("switch", "car_ride_mode");
     const sessionEntity = this._findEntity("sensor", "session_duration");
-    const leftClip = this._findEntity("binary_sensor", "left");
-    const rightClip = this._findEntity("binary_sensor", "right");
+    const leftClip = this._findEntity("binary_sensor", "left_clip");
+    const rightClip = this._findEntity("binary_sensor", "right_clip");
     const responsiveness = this._findEntity("select", "responsiveness");
     const startLevel = this._findEntity("select", "motion_start_level");
 
@@ -605,7 +605,7 @@ class SnooCard extends HTMLElement {
       carRide: carRideEntity.entityId,
       responsiveness: responsiveness.entityId,
       startLevel: startLevel.entityId,
-      start: this._findEntity("button", "start").entityId,
+      start: this._findEntity("button", "start_premium").entityId,
       state: stateEntity.entityId,
     };
     this._currentState = currentState;
